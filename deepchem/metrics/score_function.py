@@ -139,9 +139,12 @@ def bedroc_score(y_true: np.ndarray, y_pred: np.ndarray, alpha: float = 20.0):
     Parameters
     ----------
     y_true: np.ndarray
-        Binary class labels. 1 for positive class, 0 otherwise
+        Binary class labels, either of shape `(N,)` with 1 for the positive
+        class and 0 otherwise, or one-hot encoded with shape `(N, 2)` (the
+        form passed in by `dc.metrics.Metric`).
     y_pred: np.ndarray
-        Predicted labels
+        Predicted class probabilities of shape `(N, 2)`. Samples are ranked
+        by the probability of the positive class, `y_pred[:, 1]`.
     alpha: float, default 20.0
         Early recognition parameter
 
@@ -165,16 +168,22 @@ def bedroc_score(y_true: np.ndarray, y_pred: np.ndarray, alpha: float = 20.0):
     except ModuleNotFoundError:
         raise ImportError("This function requires RDKit to be installed.")
 
-    # validation
-    assert len(y_true) == len(y_pred), 'Number of examples do not match'
-    assert np.array_equal(np.unique(y_true).astype(int),
-                          [0, 1]), ('Class labels must be binary: %s' %
-                                    np.unique(y_true))
-
     yt = np.asarray(y_true)
     yp = np.asarray(y_pred)
 
+    # One-hot labels of shape (N, 2), as passed by dc.metrics.Metric, are
+    # converted to class indices. Flattening them instead would produce 2N
+    # labels that no longer line up with the N predictions.
+    if yt.ndim == 2 and yt.shape[1] == 2:
+        yt = np.argmax(yt, axis=1)
     yt = yt.flatten()
+
+    # validation
+    assert len(yt) == len(yp), 'Number of examples do not match'
+    assert np.array_equal(np.unique(yt).astype(int),
+                          [0, 1]), ('Class labels must be binary: %s' %
+                                    np.unique(yt))
+
     yp = yp[:, 1].flatten()  # Index 1 because one_hot predictions
 
     scores = list(zip(yt, yp))

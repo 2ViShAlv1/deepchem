@@ -83,6 +83,43 @@ def test_bedroc_score():
     np.testing.assert_almost_equal(worst_score, 0.0, 4)
 
 
+def test_bedroc_score_one_hot_labels():
+    """Test that BEDROC accepts one-hot encoded labels of shape (N, 2)."""
+    y_true = np.array([1, 0, 1, 0, 0, 0, 0, 0, 0, 0])
+    p = np.array([0.9, 0.1, 0.8, 0.2, 0.3, 0.1, 0.2, 0.4, 0.1, 0.3])
+    y_pred = np.stack([1 - p, p], axis=1)
+    expected = dc.metrics.bedroc_score(y_true, y_pred)
+    one_hot_score = dc.metrics.bedroc_score(dc.metrics.to_one_hot(y_true),
+                                            y_pred)
+    np.testing.assert_almost_equal(one_hot_score, expected)
+
+
+def test_bedroc_score_through_metric():
+    """Test that Metric(bedroc_score) reflects the ranking of predictions."""
+    rng = np.random.RandomState(0)
+    num_actives = 20
+    num_total = 400
+    y_true = np.concatenate(
+        [np.ones(num_actives),
+         np.zeros(num_total - num_actives)])
+    # Every active scores above every inactive.
+    p = np.concatenate([
+        rng.uniform(0.6, 1.0, num_actives),
+        rng.uniform(0.5, 0.6, num_total - num_actives)
+    ])
+    perm = rng.permutation(num_total)
+    y_true, p = y_true[perm], p[perm]
+    y_pred = np.stack([1 - p, p], axis=1)
+
+    metric = dc.metrics.Metric(dc.metrics.bedroc_score)
+    best_score = metric.compute_metric(y_true, y_pred)
+    worst_score = metric.compute_metric(y_true, y_pred[:, ::-1])
+    np.testing.assert_almost_equal(best_score, 1.0)
+    np.testing.assert_almost_equal(worst_score, 0.0, 4)
+    np.testing.assert_almost_equal(best_score,
+                                   dc.metrics.bedroc_score(y_true, y_pred))
+
+
 def test_concordance_index():
     """Test concordance index."""
 
